@@ -31,7 +31,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define SERVO_MIN_US        1000   // lebar pulse untuk 0 derajat (us)
+#define SERVO_MAX_US        2000   // lebar pulse untuk 180 derajat (us)
+#define SERVO_STEP_DELAY_MS 5     // jeda tiap 1 derajat (kecepatan gerak)
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -44,8 +46,7 @@ TIM_HandleTypeDef htim1;
 TIM_HandleTypeDef htim3;
 
 /* USER CODE BEGIN PV */
-int x;
-uint8_t derajat = 90;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -59,6 +60,36 @@ static void MX_TIM1_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+// Konversi derajat (0 - 180) menjadi nilai CCR TIM3
+// Tick timer = 1 us, jadi nilai CCR = lebar pulse dalam us
+static uint16_t Servo_DegToCCR(uint8_t derajat)
+{
+  if (derajat > 180)
+  {
+    derajat = 180;
+  }
+
+  return (uint16_t)(SERVO_MIN_US +
+                    ((uint32_t)derajat * (SERVO_MAX_US - SERVO_MIN_US)) / 180);
+}
+
+// Set sudut servo: ch = 1 sampai 4, derajat = 0 sampai 180
+static void Servo_Write(uint8_t ch, uint8_t derajat)
+{
+  uint32_t channel;
+
+  switch (ch)
+  {
+    case 1: channel = TIM_CHANNEL_1; break;
+    case 2: channel = TIM_CHANNEL_2; break;
+    case 3: channel = TIM_CHANNEL_3; break;
+    case 4: channel = TIM_CHANNEL_4; break;
+    default: return;   // channel tidak valid, abaikan
+  }
+
+  __HAL_TIM_SET_COMPARE(&htim3, channel, Servo_DegToCCR(derajat));
+}
 
 /* USER CODE END 0 */
 
@@ -93,9 +124,22 @@ int main(void)
   MX_GPIO_Init();
   MX_TIM3_Init();
   MX_TIM1_Init();
-
-  HAL_TIM_Base_Start(&htim3);
   /* USER CODE BEGIN 2 */
+
+  // Posisi awal sebelum PWM dinyalakan
+  Servo_Write(1, 0);
+  Servo_Write(2, 0);
+  Servo_Write(3, 0);
+  Servo_Write(4, 0);
+
+  // Start PWM servo (TIM3 CH1 - CH4)
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_3);
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_4);
+
+  // Beri waktu servo menuju posisi awal
+  HAL_Delay(500);
 
   /* USER CODE END 2 */
 
@@ -103,42 +147,47 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	    Servo_Write(1, 0);
+//    // Gerak 0 -> 90 derajat (servo CH1)
+    for (int sudut = 0; sudut <= 100; sudut++)
+    {
+      Servo_Write(3, (uint8_t)sudut);
+      Servo_Write(2, (uint8_t)sudut);
+      HAL_Delay(SERVO_STEP_DELAY_MS);
+    }
+// Servo_Write(2, 180);
+//	   Servo_Write(3, 0);
 
-
-// semua servo serentak 90 derajat
- derajat = 90;
- x = 1000 + (derajat * 1000  / 180 );
-	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, x);
-	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, x);
-	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, x);
-	  __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, x);
-Hal_Delay(1000);
-
-
-
-
-
-// semua servo serentak 180 derajat
-derajat = 180;
-x = 1000 + (derajat * 1000  / 180 );
-	__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, x);
-	__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, x);
-	__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, x);
-	__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, x);
-Hal_Delay(1000);
+    HAL_Delay(2000);
 
 
 
 
-// semua servo serentak 0 derajat
-derajat = 0;
-x = 1000 + (derajat * 1000  / 180 );
-		__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_4, x);
-		__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_3, x);
-		__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, x);
-		__HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, x);
-Hal_Delay(1000);
 
+
+
+    Servo_Write(1, 90);
+    // Gerak 90 -> 0 derajat (servo CH1)
+    for (int sudut = 100; sudut >= 0; sudut--)
+    {
+      Servo_Write(3, (uint8_t)sudut);
+      Servo_Write(2, (uint8_t)sudut);
+      HAL_Delay(SERVO_STEP_DELAY_MS);
+    }
+
+
+    HAL_Delay(2000);
+
+
+
+
+
+
+
+    // Contoh pemakaian channel lain:
+    // Servo_Write(2, 45);
+    // Servo_Write(3, 90);
+    // Servo_Write(4, 180);
 
     /* USER CODE END WHILE */
 
